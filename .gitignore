@@ -105,3 +105,4 @@ dist
 
 # Config
 config/profiles.json
+config/database.json

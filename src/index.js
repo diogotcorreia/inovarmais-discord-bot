@@ -6,6 +6,7 @@ const moment = require("moment");
 const profilesConfig = require("../config/profiles.json");
 const Profile = require("./Profile");
 const { compareAttachments } = require("./utils");
+const { getDescription, setDescription } = require("./Database");
 
 if (!profilesConfig) {
   console.error("No profiles provided");
@@ -14,6 +15,7 @@ if (!profilesConfig) {
 
 moment.locale("pt");
 const profiles = profilesConfig.map((profile) => new Profile(profile));
+const owners = profilesConfig.map((profile) => profile.owner).flat();
 
 const client = new Client();
 
@@ -72,14 +74,16 @@ const updateChannel = async (channelId, { summaries, tasks }) => {
       .setColor(0x4298f5)
       .setAuthor(summary.subject)
       .addFields(
-        summary.attachments.map((attachment) => ({
-          name: `(${attachment.id}) ${attachment.name}`.substring(0, 256),
-          value: "*Sem descrição*",
-        }))
+        await Promise.all(
+          summary.attachments.map(async (attachment) => ({
+            name: `(${attachment.id}) ${attachment.name}`.substring(0, 256),
+            value: (await getDescription(attachment.id)) || "*Sem descrição*",
+          }))
+        )
       )
       .setFooter(
         `${summary.subject} S#${summary.number} - ${moment(summary.date).format(
-          "dd, D MMMM YYYY"
+          "ddd, D MMMM YYYY"
         )}`
       );
 
@@ -122,10 +126,12 @@ const updateChannel = async (channelId, { summaries, tasks }) => {
       .setColor(0xeb6134)
       .setAuthor(task.subject)
       .addFields(
-        task.attachments.map((attachment) => ({
-          name: `(${attachment.id}) ${attachment.name}`.substring(0, 256),
-          value: "*Sem descrição*",
-        }))
+        await Promise.all(
+          task.attachments.map(async (attachment) => ({
+            name: `(${attachment.id}) ${attachment.name}`.substring(0, 256),
+            value: (await getDescription(attachment.id)) || "*Sem descrição*",
+          }))
+        )
       )
       .setFooter(
         `${task.subject} T#${task.id} - ${moment(task.date).format(
@@ -170,13 +176,31 @@ const updateChannel = async (channelId, { summaries, tasks }) => {
 client.on("ready", async () => {
   console.log(`Logged in as ${client.user.tag}!`);
   await updateAllChannels();
-  cron.schedule("* */15 * * *", () => updateAllChannels());
+  cron.schedule("*/15 * * * *", () => {
+    console.log("Updating messages...");
+    updateAllChannels();
+  });
 });
 
-client.on("message", (msg) => {
+client.on("message", async (msg) => {
   // TODO will be needed to implement custom file descriptions
   if (msg.content === "ping") {
     msg.reply("Pong!");
+  }
+  if (msg.content && msg.content.startsWith("!im ")) {
+    if (owners.indexOf(msg.author.id) < 0) {
+      msg.reply("Não tens permissão para isso!");
+      return;
+    }
+    try {
+      const id = msg.content.split(" ")[1];
+      const content = msg.content.replace(`!im ${id} `, "");
+      await setDescription(id, content);
+      await updateAllChannels({ fetch: false });
+      await msg.reply("Descrição alterada!");
+    } catch {
+      msg.reply("Ocorreu um erro ao alterar a descrição do anexo :sob:");
+    }
   }
 });
 

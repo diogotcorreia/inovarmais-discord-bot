@@ -69,7 +69,10 @@ class Profile {
           `api/adenda/${this.yearId}/1/${subject.IdDisciplina}`
         );
 
+        const now = moment();
+
         return tasks
+          .filter((task) => now.isSame(task.DataData, "day"))
           .map((task) => ({
             profile: this,
             channelId,

@@ -176,14 +176,10 @@ const updateChannel = async (channelId, { summaries, tasks }) => {
 client.on("ready", async () => {
   console.log(`Logged in as ${client.user.tag}!`);
   await updateAllChannels();
-  cron.schedule("*/15 * * * *", () => {
-    console.log("Updating messages...");
-    updateAllChannels();
-  });
+  cron.schedule("*/15 * * * *", () => updateAllChannels());
 });
 
 client.on("message", async (msg) => {
-  // TODO will be needed to implement custom file descriptions
   if (msg.content === "ping") {
     msg.reply("Pong!");
   }

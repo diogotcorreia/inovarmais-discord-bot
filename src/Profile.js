@@ -22,12 +22,6 @@ class Profile {
     this.yearId = 0;
     this.summaries = [];
     this.tasks = [];
-    this.setup();
-  }
-
-  async setup() {
-    await this.updateSummaries();
-    await this.updateTasks();
   }
 
   async updateSummaries() {
@@ -36,16 +30,20 @@ class Profile {
       `api/sumarios/${this.yearId}/1/0/${moment().format("DD-MM-YYYY")}`
     );
     this.summaries = summaries.Sumarios.map((summary) => ({
+      profile: this,
       channelId: this.subjectMapping[summary.Disciplina],
       number: summary.Numero,
       description: summary.Descricao,
       date: summary.Data,
+      subject: summary.Disciplina,
       attachments: summary.Anexos.map((attachment) => ({
         id: attachment.RequestAnexo.split("/")[4],
         name: attachment.Nome,
         request: attachment.RequestAnexo,
       })),
-    })).filter((summary) => !!summary.channelId);
+    }))
+      .filter((summary) => !!summary.channelId)
+      .reverse();
   }
 
   async updateTasks() {
@@ -71,17 +69,22 @@ class Profile {
           `api/adenda/${this.yearId}/1/${subject.IdDisciplina}`
         );
 
-        return tasks.map((task) => ({
-          channelId,
-          title: task.Tipo,
-          description: task.Descricao.replace(BR2NL, `\n`),
-          date: task.DataData,
-          attachments: task.Anexos.map((attachment) => ({
-            id: attachment.IdAnexo,
-            name: attachment.Nome,
-            request: `api/adenda/download/${attachment.IdAnexo}/${attachment.Nome}/1`,
-          })),
-        }));
+        return tasks
+          .map((task) => ({
+            profile: this,
+            channelId,
+            id: task.Id,
+            title: task.Tipo,
+            description: task.Descricao.replace(BR2NL, `\n`),
+            date: task.DataData,
+            subject: subjectName,
+            attachments: task.Anexos.map((attachment) => ({
+              id: `${attachment.IdAnexo}`,
+              name: attachment.Nome,
+              request: `api/adenda/download/${attachment.IdAnexo}/${attachment.Nome}/1`,
+            })),
+          }))
+          .reverse();
       })
     );
 
@@ -89,7 +92,24 @@ class Profile {
   }
 
   async getAttachment(request) {
-    // TODO
+    try {
+      await this.login();
+      const { data } = await this.api.get(request);
+
+      if (data.rpt) return Buffer.from(data.rpt, "base64");
+
+      if (data.RequestFile) {
+        const response = await this.api.get(data.RequestFile, {
+          responseType: "arraybuffer",
+        });
+        return Buffer.from(response.data, "binary");
+      }
+    } catch (e) {
+      console.error(e);
+      console.error("Error while fetching attachment");
+    }
+
+    return null;
   }
 
   async login() {

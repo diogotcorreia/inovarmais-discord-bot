@@ -20,6 +20,7 @@ class Profile {
     this.subjectMapping = profile.subjectMapping;
     this.loginExpires = 0;
     this.yearId = 0;
+    this.studentId = 0;
     this.summaries = [];
     this.tasks = [];
   }
@@ -49,7 +50,7 @@ class Profile {
   async updateTasks() {
     await this.login();
     const { data: subjects } = await this.api.get(
-      `api/adenda/disciplinas/${this.yearId}/1`
+      `api/adenda/disciplinas/${this.yearId}/1/${this.studentId}`
     );
     const tasks = await Promise.all(
       subjects.map(async (subject) => {
@@ -136,6 +137,7 @@ class Profile {
 
       this.api.defaults.headers.common["Authorization"] = `Bearer${data.token}`;
       this.yearId = data.Matriculas[0].MatriculaId;
+      this.studentId = data.AlunoId;
 
       const decoded = jwt.decode(data.token);
       this.loginExpires = decoded.Exp;
